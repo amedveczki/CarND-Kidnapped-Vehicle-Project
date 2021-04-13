@@ -12,6 +12,7 @@
 #include <string>
 #include <vector>
 #include "helper_functions.h"
+#include <random>
 
 struct Particle {
   int id;
@@ -91,9 +92,11 @@ class ParticleFilter {
    * This can be a very useful debugging tool to make sure transformations 
    *   are correct and assocations correctly connected
    */
+  /*
   void SetAssociations(Particle& particle, const std::vector<int>& associations,
                        const std::vector<double>& sense_x, 
                        const std::vector<double>& sense_y);
+                       */
 
   /**
    * initialized Returns whether particle filter is initialized yet or not.
@@ -112,14 +115,13 @@ class ParticleFilter {
   std::vector<Particle> particles;
 
  private:
+  std::default_random_engine gen;
+
   // Number of particles to draw
   int num_particles; 
   
   // Flag, if filter is initialized
   bool is_initialized;
-  
-  // Vector of weights of all particles
-  std::vector<double> weights; 
 };
 
 #endif  // PARTICLE_FILTER_H_

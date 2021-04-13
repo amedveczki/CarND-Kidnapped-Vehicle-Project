@@ -8,6 +8,8 @@
 #include "particle_filter.h"
 
 #include <math.h>
+#include <cmath>
+#include <cassert>
 #include <algorithm>
 #include <iostream>
 #include <iterator>
@@ -15,6 +17,7 @@
 #include <random>
 #include <string>
 #include <vector>
+#include <climits>
 
 #include "helper_functions.h"
 
@@ -30,12 +33,34 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
    * NOTE: Consult particle_filter.h for more information about this method 
    *   (and others in this file).
    */
-  num_particles = 0;  // TODO: Set the number of particles
 
+  // This should likely be based on std + desired accuracy
+  num_particles = 100;
+
+
+  std::normal_distribution<double> xdist{x, std[0]};
+  std::normal_distribution<double> ydist{y, std[1]};
+  std::normal_distribution<double> tdist{theta, std[2]};
+
+  for (int i = 0; i < num_particles; ++i)
+      particles.push_back({i, xdist(gen), ydist(gen), tdist(gen), 1});
 }
 
 void ParticleFilter::prediction(double delta_t, double std_pos[], 
-                                double velocity, double yaw_rate) {
+                                double velocity, double yaw_rate)
+{
+  std::normal_distribution<double> xdist{0, std_pos[0]};
+  std::normal_distribution<double> ydist{0, std_pos[1]};
+  std::normal_distribution<double> tdist{0, std_pos[2]};
+    for (auto&& p : particles)
+    {
+        p.x += velocity/yaw_rate * (sin(p.theta + yaw_rate*delta_t) - sin(p.theta))
+            + xdist(gen);
+        p.y += velocity/yaw_rate * (cos(p.theta) - cos(p.theta + yaw_rate*delta_t))
+            + ydist(gen);
+        p.theta += yaw_rate * delta_t
+            + tdist(gen);
+    }
   /**
    * TODO: Add measurements to each particle and add random Gaussian noise.
    * NOTE: When adding noise you may find std::normal_distribution 
@@ -56,7 +81,29 @@ void ParticleFilter::dataAssociation(vector<LandmarkObs> predicted,
    *   probably find it useful to implement this method and use it as a helper 
    *   during the updateWeights phase.
    */
+    for (auto& obs : observations)
+    {
+        double nearestDist = std::numeric_limits<double>::max();
+        const LandmarkObs * nearest = nullptr;
 
+        for (const auto& pred : predicted)
+        {
+            const double dx = pred.x - obs.x;
+            const double dy = pred.y - obs.y;
+
+            // No sqrt, hope it's faster
+            const double dist = dx*dx + dy*dy;
+
+            if (dist < nearestDist)
+            {
+                nearestDist = dist;
+                nearest = &pred;
+            }
+        }
+
+        assert(nearest);
+        obs = *nearest;
+    }
 }
 
 void ParticleFilter::updateWeights(double sensor_range, double std_landmark[], 
@@ -76,6 +123,50 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
    *   (look at equation 3.33) http://planning.cs.uiuc.edu/node99.html
    */
 
+    const double maxDist = sensor_range*sensor_range;
+    assert(maxDist > sensor_range);
+ 
+
+    for (auto& p : particles)
+    {
+
+        vector<LandmarkObs> predicted;
+
+        // Translate+rotate landmark positions so observations and predicted
+        // can be compared
+        for (const auto& lm : map_landmarks.landmark_list)
+        {
+            double vx = p.x + (cos(p.theta)*lm.x_f - sin(p.theta)*lm.y_f);
+            double vy = p.y + (sin(p.theta)*lm.x_f + cos(p.theta)*lm.y_f);
+
+            double xdiff = vx-p.x;
+            double ydiff = vx-p.x;
+
+            if (xdiff*xdiff + ydiff*ydiff < maxDist)
+                predicted.push_back({lm.id_i, vx, vy});
+        }
+
+        assert(observations.size() == predicted.size());
+
+        // pair observations to predicted landmarks
+        vector<LandmarkObs> matched_observations(observations);
+        dataAssociation(predicted, matched_observations);
+
+        p.weight = 1;
+
+        // Update weights based on this
+        for (size_t i = 0; i < observations.size(); ++i)
+        {
+            const auto& obs = observations[i];
+            const auto& pred = predicted[i];
+            const auto dx = obs.x - pred.x;
+            const auto dy = obs.y - pred.y;
+            const auto& ox = std_landmark[0];
+            const auto& oy = std_landmark[1];
+
+            p.weight *= (1/(2*M_PI*ox*oy)) * exp(-(dx*dx/(2*ox*ox) + dy*dy/(2*oy*oy)));
+        }
+    }
 }
 
 void ParticleFilter::resample() {

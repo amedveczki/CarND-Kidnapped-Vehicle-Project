@@ -20,9 +20,9 @@ struct Particle {
   double y;
   double theta;
   double weight;
-  std::vector<int> associations;
-  std::vector<double> sense_x;
-  std::vector<double> sense_y;
+  // std::vector<int> associations;
+  // std::vector<double> sense_x;
+  //  std::vector<double> sense_y;
 };
 
 
@@ -108,8 +108,8 @@ class ParticleFilter {
   /**
    * Used for obtaining debugging information related to particles.
    */
-  std::string getAssociations(Particle best);
-  std::string getSenseCoord(Particle best, std::string coord);
+  //std::string getAssociations(Particle best);
+  //std::string getSenseCoord(Particle best, std::string coord);
 
   // Set of current particles
   std::vector<Particle> particles;

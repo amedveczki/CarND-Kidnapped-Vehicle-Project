@@ -177,8 +177,31 @@ void ParticleFilter::resample() {
    *   http://en.cppreference.com/w/cpp/numeric/random/discrete_distribution
    */
 
+    /*
+    const double maxw = **std::max_element(particles.begin(), particles.end(),
+            [](const auto& a, const auto& b) { return a.weight < b.weight; });
+    const double beta = 2 * maxw;
+
+
+    for (p : particles)
+    {
+    }
+    */
+  
+    // Vector of weights of all particles
+    std::vector<double> weights; 
+    std::transform(particles.begin(), particles.end(), std::back_inserter(weights),
+            [](const Particle& p) { return p.weight; });
+
+    std::discrete_distribution<> disc(weights.begin(), weights.end());
+
+    const auto old_particles(std::move(particles));
+
+    for (size_t i = 0; i < old_particles.size(); ++i)
+        particles.push_back(old_particles[disc(gen)]);
 }
 
+  /*
 void ParticleFilter::SetAssociations(Particle& particle, 
                                      const vector<int>& associations, 
                                      const vector<double>& sense_x, 
@@ -188,11 +211,14 @@ void ParticleFilter::SetAssociations(Particle& particle,
   // associations: The landmark id that goes along with each listed association
   // sense_x: the associations x mapping already converted to world coordinates
   // sense_y: the associations y mapping already converted to world coordinates
+
   particle.associations= associations;
   particle.sense_x = sense_x;
   particle.sense_y = sense_y;
 }
 
+  */
+/*
 string ParticleFilter::getAssociations(Particle best) {
   vector<int> v = best.associations;
   std::stringstream ss;
@@ -217,3 +243,4 @@ string ParticleFilter::getSenseCoord(Particle best, string coord) {
   s = s.substr(0, s.length()-1);  // get rid of the trailing space
   return s;
 }
+*/

@@ -250,7 +250,6 @@ void ParticleFilter::resample() {
     }
 }
 
-  /*
 void ParticleFilter::SetAssociations(Particle& particle, 
                                      const vector<int>& associations, 
                                      const vector<double>& sense_x, 
@@ -266,8 +265,6 @@ void ParticleFilter::SetAssociations(Particle& particle,
   particle.sense_y = sense_y;
 }
 
-  */
-/*
 string ParticleFilter::getAssociations(Particle best) {
   vector<int> v = best.associations;
   std::stringstream ss;
@@ -292,4 +289,3 @@ string ParticleFilter::getSenseCoord(Particle best, string coord) {
   s = s.substr(0, s.length()-1);  // get rid of the trailing space
   return s;
 }
-*/

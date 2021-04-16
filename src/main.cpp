@@ -60,7 +60,6 @@ int main() {
         auto j = json::parse(s);
 
         string event = j[0].get<string>();
-        std::cout << "debugriz event " << event << std::endl;
         
         if (event == "telemetry") {
           // j[1] is the data JSON object
@@ -70,15 +69,18 @@ int main() {
             double sense_y = std::stod(j[1]["sense_y"].get<string>());
             double sense_theta = std::stod(j[1]["sense_theta"].get<string>());
 
-            std::cout << "PF init" << std::endl;
             pf.init(sense_x, sense_y, sense_theta, sigma_pos);
           } else {
+            double sense_x = std::stod(j[1]["sense_x"].get<string>());
+            double sense_y = std::stod(j[1]["sense_y"].get<string>());
+            double sense_theta = std::stod(j[1]["sense_theta"].get<string>());
+            //std::cout << "debugriz gt " << sense_x << "," << sense_y << " " << sense_theta << std::endl;
+
             // Predict the vehicle's next state from previous 
             //   (noiseless control) data.
             double previous_velocity = std::stod(j[1]["previous_velocity"].get<string>());
             double previous_yawrate = std::stod(j[1]["previous_yawrate"].get<string>());
 
-            std::cout << "pf pred" << std::endl;
             pf.prediction(delta_t, sigma_pos, previous_velocity, previous_yawrate);
           }
 
@@ -110,11 +112,8 @@ int main() {
             noisy_observations.push_back(obs);
           }
 
-          std::cout << "updateWeights" << std::endl;
           // Update the weights and resample
           pf.updateWeights(sensor_range, sigma_landmark, noisy_observations, map);
-
-          std::cout << "resample" << std::endl;
           pf.resample();
 
           // Calculate and output the average weighted error of the particle 

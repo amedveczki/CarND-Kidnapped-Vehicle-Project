@@ -35,15 +35,21 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
    */
 
   // This should likely be based on std + desired accuracy
-  num_particles = 100;
+  num_particles = 10;
 
 
   std::normal_distribution<double> xdist{x, std[0]};
   std::normal_distribution<double> ydist{y, std[1]};
   std::normal_distribution<double> tdist{theta, std[2]};
 
+  std::cout << "Init, gps: " << x << "," << y << " theta " << theta << std::endl;
+
   for (int i = 0; i < num_particles; ++i)
+  {
       particles.push_back({i, xdist(gen), ydist(gen), tdist(gen), 1});
+      const auto& p = particles.back();
+      std::cout << "Init, particle #" << i << " " << p.x << "," << p.y << " theta " << p.theta << std::endl;
+  }
 }
 
 void ParticleFilter::prediction(double delta_t, double std_pos[], 
@@ -52,6 +58,8 @@ void ParticleFilter::prediction(double delta_t, double std_pos[],
   std::normal_distribution<double> xdist{0, std_pos[0]};
   std::normal_distribution<double> ydist{0, std_pos[1]};
   std::normal_distribution<double> tdist{0, std_pos[2]};
+        //std::cout << "Prediction t: " << delta_t << " velocity " << velocity << " yaw_rate " << yaw_rate << std::endl;;
+        int i = 0;
     for (auto&& p : particles)
     {
         p.x += velocity/yaw_rate * (sin(p.theta + yaw_rate*delta_t) - sin(p.theta))
@@ -60,6 +68,8 @@ void ParticleFilter::prediction(double delta_t, double std_pos[],
             + ydist(gen);
         p.theta += yaw_rate * delta_t
             + tdist(gen);
+
+        //std::cout << " Particle " << i++ << " -> " << p.x << "," << p.y << " theta " << p.theta << std::endl;
     }
   /**
    * TODO: Add measurements to each particle and add random Gaussian noise.
@@ -81,12 +91,23 @@ void ParticleFilter::dataAssociation(vector<LandmarkObs> predicted,
    *   probably find it useful to implement this method and use it as a helper 
    *   during the updateWeights phase.
    */
-    for (auto& obs : observations)
+    /*
+    std::cout << "dataAssociation - predicted" << std::endl;
+    for (size_t i = 0; i < predicted.size(); ++i)
+        std::cout << i << ". pred: " << predicted[i].x << "," << predicted[i].y << std::endl;
+    for (size_t i = 0; i < observations.size(); ++i)
+        std::cout << i << ". obs: " << observations[i].x << "," << observations[i].y << std::endl;
+
+    std::cout << "Observations..." << std::endl;
+    */
+
+    vector<LandmarkObs> unsortedObservations(std::move(observations));
+    for (auto& pred : predicted)
     {
         double nearestDist = std::numeric_limits<double>::max();
         const LandmarkObs * nearest = nullptr;
 
-        for (const auto& pred : predicted)
+        for (const auto& obs : unsortedObservations)
         {
             const double dx = pred.x - obs.x;
             const double dy = pred.y - obs.y;
@@ -97,12 +118,14 @@ void ParticleFilter::dataAssociation(vector<LandmarkObs> predicted,
             if (dist < nearestDist)
             {
                 nearestDist = dist;
-                nearest = &pred;
+                nearest = &obs;
             }
         }
 
         assert(nearest);
-        obs = *nearest;
+
+        //std::cout << "observed orig " << nearest->x << "," << nearest->y << " => predicted " << pred.x << "," << pred.y << std::endl;
+        observations.push_back(*nearest);
     }
 }
 
@@ -126,46 +149,65 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
     const double maxDist = sensor_range*sensor_range;
     assert(maxDist > sensor_range);
  
+    vector<LandmarkObs> transformed;
 
     for (auto& p : particles)
     {
-
         vector<LandmarkObs> predicted;
 
-        // Translate+rotate landmark positions so observations and predicted
-        // can be compared
+        // Check which landmarks are in range
         for (const auto& lm : map_landmarks.landmark_list)
         {
-            double vx = p.x + (cos(p.theta)*lm.x_f - sin(p.theta)*lm.y_f);
-            double vy = p.y + (sin(p.theta)*lm.x_f + cos(p.theta)*lm.y_f);
+            double xdiff = lm.x_f-p.x;
+            double ydiff = lm.y_f-p.y;
 
-            double xdiff = vx-p.x;
-            double ydiff = vx-p.x;
+            //std::cout << "Landmark " << lm.x_f << "," << lm.y_f;
 
             if (xdiff*xdiff + ydiff*ydiff < maxDist)
-                predicted.push_back({lm.id_i, vx, vy});
+            {
+                //std::cout << " (OK)" << std::endl;
+                predicted.push_back({lm.id_i, lm.x_f, lm.y_f});
+            }
         }
 
-        assert(observations.size() == predicted.size());
+        for (const auto& obs : observations)
+        {
+            // transform observed landmarks to map space
+            double vx = p.x + (cos(p.theta)*obs.x - sin(p.theta)*obs.y);
+            double vy = p.y + (sin(p.theta)*obs.x + cos(p.theta)*obs.y);
+
+            //std::cout << obs.x << "," << obs.y << " -> " << vx << "," << vy << std::endl;
+            transformed.push_back({obs.id, vx, vy});
+        }
+
+        //std::cout << "obs size: " << observations.size() << " pred size: " << predicted.size() << std::endl;
+        //assert(observations.size() == predicted.size());
 
         // pair observations to predicted landmarks
-        vector<LandmarkObs> matched_observations(observations);
-        dataAssociation(predicted, matched_observations);
+        dataAssociation(predicted, transformed);
 
         p.weight = 1;
 
         // Update weights based on this
-        for (size_t i = 0; i < observations.size(); ++i)
+        for (size_t i = 0; i < transformed.size(); ++i)
         {
-            const auto& obs = observations[i];
+            const auto& obs = transformed[i];
             const auto& pred = predicted[i];
             const auto dx = obs.x - pred.x;
             const auto dy = obs.y - pred.y;
             const auto& ox = std_landmark[0];
             const auto& oy = std_landmark[1];
 
+            /*
+            std::cout << "Observed " << obs.x << "," << obs.y << " predicted " << pred.x << "," << pred.y << " *= " << ((1/(2*M_PI*ox*oy)) * exp(-(dx*dx/(2*ox*ox) + dy*dy/(2*oy*oy))))<< std::endl;
+            std::cout << "2*M_PI*ox*oy " << 2*M_PI*ox*oy << " ox " << ox << " oy "<<  oy << " dx " << dx << " dy " << dy << std::endl;
+            std::cout << "exp: " << exp(-(dx*dx/(2*ox*ox) + dy*dy/(2*oy*oy))) << std::endl;
+            std::cout << "dxdx/2oxox " << dx*dx/(2*ox*ox) << " dy*dy/(2*oy*oy))) " << dy*dy/(2*oy*oy) << std::endl;
+
+            */
             p.weight *= (1/(2*M_PI*ox*oy)) * exp(-(dx*dx/(2*ox*ox) + dy*dy/(2*oy*oy)));
         }
+        std::cout << "Final weight: " << p.weight << std::endl;
     }
 }
 
@@ -198,7 +240,14 @@ void ParticleFilter::resample() {
     const auto old_particles(std::move(particles));
 
     for (size_t i = 0; i < old_particles.size(); ++i)
-        particles.push_back(old_particles[disc(gen)]);
+        std::cout << i << ". p: " << weights[i] << std::endl;
+
+    for (size_t i = 0; i < old_particles.size(); ++i)
+    {
+        auto d = disc(gen);
+        std::cout << i << ". -> " << d << std::endl;
+        particles.push_back(old_particles[d]);
+    }
 }
 
   /*

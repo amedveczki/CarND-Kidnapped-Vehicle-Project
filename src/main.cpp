@@ -60,6 +60,7 @@ int main() {
         auto j = json::parse(s);
 
         string event = j[0].get<string>();
+        std::cout << "debugriz event " << event << std::endl;
         
         if (event == "telemetry") {
           // j[1] is the data JSON object
@@ -69,6 +70,7 @@ int main() {
             double sense_y = std::stod(j[1]["sense_y"].get<string>());
             double sense_theta = std::stod(j[1]["sense_theta"].get<string>());
 
+            std::cout << "PF init" << std::endl;
             pf.init(sense_x, sense_y, sense_theta, sigma_pos);
           } else {
             // Predict the vehicle's next state from previous 
@@ -76,6 +78,7 @@ int main() {
             double previous_velocity = std::stod(j[1]["previous_velocity"].get<string>());
             double previous_yawrate = std::stod(j[1]["previous_yawrate"].get<string>());
 
+            std::cout << "pf pred" << std::endl;
             pf.prediction(delta_t, sigma_pos, previous_velocity, previous_yawrate);
           }
 
@@ -107,8 +110,11 @@ int main() {
             noisy_observations.push_back(obs);
           }
 
+          std::cout << "updateWeights" << std::endl;
           // Update the weights and resample
           pf.updateWeights(sensor_range, sigma_landmark, noisy_observations, map);
+
+          std::cout << "resample" << std::endl;
           pf.resample();
 
           // Calculate and output the average weighted error of the particle 
@@ -135,11 +141,13 @@ int main() {
           msgJson["best_particle_y"] = best_particle.y;
           msgJson["best_particle_theta"] = best_particle.theta;
 
+          std::cout << "Best particle: " << best_particle.x << "," << best_particle.y << " " << best_particle.theta << std::endl;
+
           // Optional message data used for debugging particle's sensing 
           //   and associations
-          //msgJson["best_particle_associations"] = pf.getAssociations(best_particle);
-          //msgJson["best_particle_sense_x"] = pf.getSenseCoord(best_particle, "X");
-          //msgJson["best_particle_sense_y"] = pf.getSenseCoord(best_particle, "Y");
+          msgJson["best_particle_associations"] = "asdf";//pf.getAssociations(best_particle);
+          msgJson["best_particle_sense_x"] = 0; //pf.getSenseCoord(best_particle, "X");
+          msgJson["best_particle_sense_y"] = 0; // pf.getSenseCoord(best_particle, "Y");
 
           auto msg = "42[\"best_particle\"," + msgJson.dump() + "]";
           // std::cout << msg << std::endl;
